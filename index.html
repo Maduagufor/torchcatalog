@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Torch Equipment Catalog</title>
+    <!-- Modern lightweight UI styling -->
+    <link rel="stylesheet" href="https://jsdelivr.net">
+    <style>
+        body { max-width: 1200px; margin: 0 auto; padding: 20px; font-family: system-ui, sans-serif; }
+        .controls { display: flex; gap: 15px; margin-bottom: 30px; align-items: center; }
+        .search-box, .filter-box { padding: 10px; font-size: 1rem; border-radius: 6px; border: 1px solid #ccc; }
+        .search-box { flex-grow: 1; }
+        .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
+        .card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); color: #333; }
+        .card img { width: 100%; height: 180px; object-fit: contain; border-radius: 4px; margin-bottom: 12px; background: #fafafa; }
+        .card h3 { margin: 0 0 8px 0; font-size: 1.15rem; color: #111; line-height: 1.3; }
+        .badge-container { display: flex; gap: 5px; margin-bottom: 10px; }
+        .badge { font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
+        .badge.brand { background: #0076ff; color: white; }
+        .badge.condition { background: #e2e8f0; color: #4a5568; }
+        .card .price { font-size: 1.25rem; font-weight: 700; color: #2b6cb0; margin-top: 15px; margin-bottom: 15px; }
+        .card .desc { font-size: 0.88rem; color: #4a5568; margin-bottom: 15px; line-height: 1.5; white-space: pre-line; }
+        
+        /* Action Button Grid Layout */
+        .btn-group { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        .btn { display: inline-block; text-align: center; padding: 10px; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 0.9rem; transition: background 0.2s ease; }
+        
+        .whatsapp-btn { background: #25D366; color: white; border: none; }
+        .whatsapp-btn:hover { background: #128C7E; color: white; }
+        .details-btn { background: #2b6cb0; color: white; }
+        .details-btn:hover { background: #1a4971; color: white; }
+        
+        .loading { text-align: center; font-size: 1.2rem; margin-top: 50px; }
+    </style>
+</head>
+<body>
+
+    <h1>Torch Equipment Catalog</h1>
+    
+    <!-- Filter UI Elements -->
+    <div class="controls">
+        <input type="text" id="search" class="search-box" placeholder="Search by model, specs or features...">
+        <select id="brandFilter" class="filter-box">
+            <option value="">All Brands</option>
+        </select>
+    </div>
+
+    <!-- Interface placeholders -->
+    <div id="loading" class="loading">Fetching live catalog items...</div>
+    <div id="catalog" class="catalog-grid"></div>
+
+    <script>
+        // Exact Sheet parameters targeting your "torch" sheet tab configuration
+        const SHEET_ID = '1XuDd8x2q3qvSxJ-OMBOGVEL8Mwfq10DIzZY3H0cKSVo';
+        const SHEET_NAME = 'torch';
+        const URL = `https://google.com{SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEET_NAME)}&tqx=out:json`;
+        
+        // Target WhatsApp contact details
+        const WHATSAPP_NUMBER = '2348026060214';
+
+        let allProducts = [];
+
+        async function fetchCatalog() {
+            try {
+                const response = await fetch(URL);
+                const text = await response.text();
+                
+                // Clean Google raw safety wrapper from JSON data response
+                const jsonText = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+                const data = JSON.parse(jsonText);
+                
+                // Map explicit column header rows explicitly
+                const headers = data.table.cols.map(col => col.label ? col.label.toLowerCase().trim() : '');
+                
+                allProducts = data.table.rows.map(row => {
+                    let product = {};
+                    row.c.forEach((cell, index) => {
+                        const headerName = headers[index] || `column_${index}`;
+                        product[headerName] = cell ? cell.v : '';
+                    });
+                    return product;
+                });
+
+                document.getElementById('loading').style.display = 'none';
+                populateFilters(allProducts);
+                renderCatalog(allProducts);
+
+            } catch (error) {
+                console.error("Error loading spreadsheet data:", error);
+                document.getElementById('loading').innerText = "Failed to load catalog data. Verify your Google Sheet connection parameters.";
+            }
+        }
+
+        function populateFilters(products) {
+            const select = document.getElementById('brandFilter');
+            // Dynamically collect brand listings avoiding duplicates
+            const brands = [...new Set(products.map(p => p.brand).filter(Boolean))];
+            
+            brands.forEach(brand => {
+                const opt = document.createElement('option');
+                opt.value = brand;
+                opt.textContent = brand.charAt(0).toUpperCase() + brand.slice(1);
+                select.appendChild(opt);
+            });
+        }
+
+        function renderCatalog(products) {
+            const container = document.getElementById('catalog');
+            container.innerHTML = '';
+
+            if (products.length === 0) {
+                container.innerHTML = '<p>No products match your specific criteria.</p>';
+                return;
+            }
+
+            products.forEach(p => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                
+                // Uses image_link from sheet or switches to structural placeholder
+                const imgUrl = p.image_link || 'https://placeholder.com';
+                
+                // Formats pricing gracefully based on NGN structure detected
+                let displayPrice = p.price;
+                if (typeof p.price === 'number' || !isNaN(p.price)) {
+                    displayPrice = Number(p.price) === 0 ? "Contact for Price" : `${Number(p.price).toLocaleString()} NGN`;
+                }
+
+                // Construct a personalized WhatsApp inquiry link
+                const productTitle = p.title || 'Untitled Product';
+                const productId = p.id ? `(ID: ${p.id})` : '';
+                const whatsappText = `Hello, I'm interested in inquiring about the following item from your catalog:\n\n*Product:* ${productTitle} ${productId}\n*Price:* ${displayPrice}\n\nCould you please provide more details?`;
+                const whatsappUrl = `https://wa.me{WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappText)}`;
+
+                card.innerHTML = `
+                    <div>
+                        <img src="${imgUrl}" alt="${productTitle}">
+                        <div class="badge-container">
+                            ${p.brand ? `<span class="badge brand">${p.brand}</span>` : ''}
+                            ${p.condition ? `<span class="badge condition">${p.condition}</span>` : ''}
+                        </div>
+                        <h3>${productTitle}</h3>
+                        <p class="desc">${p.description || 'No item description details provided.'}</p>
+                    </div>
+                    <div>
+                        <div class="price">${displayPrice}</div>
+                        <div class="btn-group">
+                            <a href="${whatsappUrl}" target="_blank" class="btn whatsapp-btn">💬 Chat on WhatsApp</a>
+                            ${p.link ? `<a href="${p.link}" target="_blank" class="btn details-btn">View Product Details</a>` : ''}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function filterData() {
+            const searchTerm = document.getElementById('search').value.toLowerCase();
+            const selectedBrand = document.getElementById('brandFilter').value;
+
+            const filtered = allProducts.filter(p => {
+                const matchesSearch = (p.title && p.title.toLowerCase().includes(searchTerm)) || 
+                                      (p.description && p.description.toLowerCase().includes(searchTerm)) ||
+                                      (p.id && String(p.id).includes(searchTerm));
+                const matchesBrand = !selectedBrand || p.brand === selectedBrand;
+                return matchesSearch && matchesBrand;
+            });
+
+            renderCatalog(filtered);
+        }
+
+        document.getElementById('search').addEventListener('input', filterData);
+        document.getElementById('brandFilter').addEventListener('change', filterData);
+
+        // Run fetch logic on instantiation
+        fetchCatalog();
+    </script>
+</body>
+</html>
